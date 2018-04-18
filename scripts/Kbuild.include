@@ -213,6 +213,12 @@ make-cmd = $(subst \\,\\\\,$(subst \#,\\\#,$(subst $$,$$$$,$(call escsq,$(cmd_$(
 
 # Find any prerequisites that is newer than target or that does not exist.
 # PHONY targets skipped in both cases.
+# $? The names of all the prerequisites(依赖) that are newer than the target
+# $^ The names of all the prerequisites
+# wildcard函数，它有一个参数，功能是展开成一列所有符合由其参数描述的文件名，文件间以空格间隔，
+# SOURCES= $(wildcard *.c)  产生一个所有以 '.c' 结尾的文件的列表，然后存入变量 SOURCES 里。
+# $(filter-out $(PHONY) $(wildcard $^),$^) 理解如下：$(wildcard $^)找到依赖中已经存在的文件，
+# 然后通过filter-out去掉最新的依赖(下面代码行中最后一个$^)中的$(PHONY) $(wildcard $^)，即最终any-prereq为还没有生成的依赖
 any-prereq = $(filter-out $(PHONY),$?) $(filter-out $(PHONY) $(wildcard $^),$^)
 
 # Execute command if command has changed or prerequisite(s) are updated.

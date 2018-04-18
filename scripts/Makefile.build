@@ -134,7 +134,11 @@ ifneq ($(strip $(lib-y) $(lib-m) $(lib-n) $(lib-)),)
 lib-target := $(obj)/lib.a
 endif
 
+# ifneq (<arg1>, <arg2> ) 比较参数“arg1”和“arg2”的值是否相同，如果不同，则为真
+# $(strip <string> ) 去掉<string>字串中开头和结尾的空字符
+# 下面语句意思，如果 obj-m obj-y obj- subdir-m lib-target不为NULL 那么构建$(obj)/built-in.o
 ifneq ($(strip $(obj-y) $(obj-m) $(obj-n) $(obj-) $(subdir-m) $(lib-target)),)
+# := 是覆盖之前的值，builtin-target的依赖关系就在本文件中定义，见后面
 builtin-target := $(obj)/built-in.o
 endif
 
@@ -142,6 +146,10 @@ modorder-target := $(obj)/modules.order
 
 # We keep a list of all modules in $(MODVERDIR)
 
+# KBUILD_BUILTIN定义见linux-3.10.14中的Makefile
+# 如果 KBUILD_BUILTIN为1 那么构建 $(builtin-target) $(lib-target) $(extra-y)
+# 如果 KBUILD_MODULES为1 那么构建 $(obj-m) $(modorder-target)
+# $(subdir-ym) $(always)这两个依赖，是一直构建的
 __build: $(if $(KBUILD_BUILTIN),$(builtin-target) $(lib-target) $(extra-y)) \
 	 $(if $(KBUILD_MODULES),$(obj-m) $(modorder-target)) \
 	 $(subdir-ym) $(always)
@@ -383,6 +391,8 @@ cmd_link_o_target = $(if $(strip $(obj-y)),\
 		      $(cmd_secanalysis),\
 		      rm -f $@; $(AR) rcs$(KBUILD_ARFLAGS) $@)
 
+# builtin-target构建的规则是 构建所有的obj-y。将他们连接成一个o文件
+# if_changed定义在linux-3.10.14\scripts\Kbuild.include中
 $(builtin-target): $(obj-y) FORCE
 	$(call if_changed,link_o_target)
 
