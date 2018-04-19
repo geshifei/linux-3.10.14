@@ -137,8 +137,8 @@ endif
 # ifneq (<arg1>, <arg2> ) 比较参数“arg1”和“arg2”的值是否相同，如果不同，则为真
 # $(strip <string> ) 去掉<string>字串中开头和结尾的空字符
 # 下面语句意思，如果 obj-m obj-y obj- subdir-m lib-target不为NULL 那么构建$(obj)/built-in.o
+# := 是覆盖之前的值，这里仅是对builtin-target赋值，它的依赖关系在本文件中后文定义
 ifneq ($(strip $(obj-y) $(obj-m) $(obj-n) $(obj-) $(subdir-m) $(lib-target)),)
-# := 是覆盖之前的值，builtin-target的依赖关系就在本文件中定义，见后面
 builtin-target := $(obj)/built-in.o
 endif
 

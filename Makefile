@@ -219,7 +219,7 @@ SUBARCH := $(shell uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
 # Default value for CROSS_COMPILE is not to prefix executables
 # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
 ARCH		?= $(SUBARCH) 
-#提取交叉编译器前缀，CONFIG_CROSS_COMPILE，通常由make menuconfig 配置时设定，CONFIG_CROSS_COMPILE="arm-none-linux-gnueabi-"
+#提取交叉编译器前缀，CONFIG_CROSS_COMPILE通常由make menuconfig设定，CONFIG_CROSS_COMPILE="arm-none-linux-gnueabi-"
 CROSS_COMPILE	?= $(CONFIG_CROSS_COMPILE:"%"=%)
 
 # Architecture as present in compile.h
@@ -456,10 +456,10 @@ PHONY += scripts_basic
 scripts_basic:
 # build的定义见linux-3.10.14/Kbuild.include
 # build := -f $(if $(KBUILD_SRC),$(srctree)/)scripts/Makefile.build obj
-# build使用的一般形式为：$(MAKE) $(build)=build_dir  [argv], 等价于 $(MAKE) -f scripts/Makefile.build obj=build_dir  [argv]
+# build使用的一般形式为：$(MAKE) $(build)=build_dir  [argv]
 # Make进入由参数-f指定的Make文件scripts/Makefile.build，并传入参数obj=build_dir 和argv。
 # 在scripts/Makefile.build的处理过程中，传入的参数$(obj)代表此次Make命令要处理（编译、链接、和生成）文件所在的目录，
-# 该目录下通常情况下都会存在的Makefile文件会被Makefile.build包含。$(obj)目录下的Makefile记为$(obj)/Makefile。
+# 该目录下通常都会存在的Makefile文件会被Makefile.build包含。$(obj)目录下的Makefile记为$(obj)/Makefile。
 # 当没有参数[argv]时，该Make命令没有指定目标。这时会使用Makefile.build中的默认目标__build。然后更进一步，会使用$(obj)/Makefile中定义的变量来进行目标匹配。
 	$(Q)$(MAKE) $(build)=scripts/basic
 	$(Q)rm -f .tmp_quiet_recordmcount

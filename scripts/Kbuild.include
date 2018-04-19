@@ -9,6 +9,8 @@ space   := $(empty) $(empty)
 
 ###
 # Name of target with a '.' as filename prefix. foo/bar.o => foo/.bar.o
+# 函数$(dir <names...>) 从文件名序列<names>中取出目录部分。目录部分是指最后一个反斜杠（“/”）之前的部分。如果没有反斜杠，那么返回“./”。
+# $(notdir <names...>) 从文件名序列<names>中取出非目录部分。非目录部分是指最後一个反斜杠（“/”）之后的部分。
 dot-target = $(dir $@).$(notdir $@)
 
 ###
@@ -26,6 +28,8 @@ baseprereq = $(basename $(notdir $<))
 
 ###
 # Escape single quote for use in echo statements
+# $(subst FROM, TO, TEXT)，将字符串TEXT中的子串FROM变为TO
+# 其中squote 为单引号', 把单引号用\反引用
 escsq = $(subst $(squote),'\$(squote)',$1)
 
 ###
@@ -196,6 +200,32 @@ objectify = $(foreach o,$(1),$(if $(filter /%,$(o)),$(o),$(obj)/$(o)))
 # if_changed_rule - as if_changed but execute rule instead
 # See Documentation/kbuild/makefiles.txt for more info
 
+# 分析KBUILD_NOCMDDEP不为1的场景;以linux-3.10.14/scripts/Makefile.build中的builtin-target为例：
+# $(builtin-target): $(obj-y) FORCE
+#	$(call if_changed,link_o_target)
+# if_changed的定义见本文件后文
+# $(1)表示第一个参数link_o_target，$@表示目标文件。在上面例子中推导如下，
+# 上面的规则依赖于$(obj-y),故需要首先重建依赖$(obj-y)，
+# $(obj-y)由linux-3.10.14各个子目录中的Makefile定义，依赖一些%.o文件，故$@为$(obj)/%.o，
+# 这里的obj是build命令指定的参数，比如linux-3.10.14/Makefile中的scripts_basic目标示例。
+# linux-3.10.14/scripts/Makefile.build中include $(kbuild-file)包含了各个子目录中的Makefile文件。
+# 在linux-3.10.14/scripts/Makefile.build中定义了$(obj)/%.o的生成方式，为.S和.c文件生成：
+# $(obj)/%.o: $(src)/%.c $(recordmcount_source) FORCE
+#	$(call cmd,force_checksrc)
+#	$(call if_changed_rule,cc_o_c)
+#
+# 以linux-3.10.14/fs目录为例，其中的Makefile中有：obj-y :=	open.o read_write.o file_table.o 等等.o文件
+# $(filter-out $(cmd_$(1)), $(cmd_$@))即为$(filter-out $(cmd_cc_o_c), $(cmd_fs/open.o))
+# 编译linux后，在fs目录中有隐藏文件.open.o.cmd，该文件的第一行如下，用来保存上次编译的参数：
+# cmd_fs/open.o := mips-openwrt-linux-uclibc-gcc -Wp,-MD,fs/.open.o.d  -nostdinc -is等等
+# .open.o.cmd是由本文件中的if_changed规则生成，见后面
+#
+# 在arg-check中，首先使用$(filter-out $(cmd_$(1)), $(cmd_$@))将上一次的编译参数$(cmd_$@)中过略掉本次要编译的参数cmd_$(1)，
+# 再用$(filter-out $(cmd_$@),   $(cmd_$(1)))将本次的编译参数中过滤掉上一次的编译参数，正反过滤的原因是，
+# filter-out函数在过滤时，如果第2个参数是第1个参数的子集或者是相同，那么返回空；所以在第1次过滤时如果返回为空，
+# 那么cmd_$@可能是等于cmd_$(1)的，也可能是它的子集，所以只有当再次反过来做过滤时发现返回为空，那么才能判断两次编译的参数是相等的，
+# 否则是不等的。如果返回结果不为空，说明编译参数发生了变化，那么就会执行 $(rule_cc_o_c)。
+#
 ifneq ($(KBUILD_NOCMDDEP),1)
 # Check if both arguments has same arguments. Result is empty string if equal.
 # User may override this check using make KBUILD_NOCMDDEP=1
@@ -209,20 +239,48 @@ endif
 # >$< substitution to preserve $ when reloading .cmd file
 # note: when using inline perl scripts [perl -e '...$$t=1;...']
 # in $(cmd_xxx) double $$ your perl vars
+# $$ 脚本运行的当前PID号。
+# 如果通配符前面是反斜杠‘\’，则该通配符失去通配能力，如‘foo\*bar’表示一个特定的文件其名字由‘foo’、‘*’和‘bar’构成。
+# 下面语句的作用分析如下：
+# $(subst $$,$$$$,$(call escsq,$(cmd_$(1)))))先通过escsq把$(cmd_$(1))中的单引号用\反引用，
+# 然后把$(cmd_$(1))中的$$替换成$$$$
 make-cmd = $(subst \\,\\\\,$(subst \#,\\\#,$(subst $$,$$$$,$(call escsq,$(cmd_$(1))))))
 
 # Find any prerequisites that is newer than target or that does not exist.
 # PHONY targets skipped in both cases.
-# $? The names of all the prerequisites(依赖) that are newer than the target
-# $^ The names of all the prerequisites
+# $? 表示所有比目标还要新的依赖文件
+# $^ 表示所有的依赖文件
 # wildcard函数，它有一个参数，功能是展开成一列所有符合由其参数描述的文件名，文件间以空格间隔，
-# SOURCES= $(wildcard *.c)  产生一个所有以 '.c' 结尾的文件的列表，然后存入变量 SOURCES 里。
-# $(filter-out $(PHONY) $(wildcard $^),$^) 理解如下：$(wildcard $^)找到依赖中已经存在的文件，
-# 然后通过filter-out去掉最新的依赖(下面代码行中最后一个$^)中的$(PHONY) $(wildcard $^)，即最终any-prereq为还没有生成的依赖
+# 首先使用 $(filter-out $(PHONY),$?) 将 $? 中的所有伪目标去掉，不然可能会将 FORCE 这种目标也带进来，
+# 如果此时返回非空，那么说明有比目标还要新的依赖文件。
+# $(wildcard $^)匹配当前目录下的所有依赖文件(已经存在的)，然后再使用 $(filter-out $(PHONY) $(wildcard $^),$^)
+# 将伪目标以及当前目录下匹配的文件列表从整个 $^ 列表中删除，如果返回不为空，那么说明某些依赖文件不存在，
+# 也就是说这些不存在的依赖文件还没生成---这是因为某些依赖文件需要在编译时才会生成。
 any-prereq = $(filter-out $(PHONY),$?) $(filter-out $(PHONY) $(wildcard $^),$^)
 
 # Execute command if command has changed or prerequisite(s) are updated.
+# set -e 表示如果命令执行有错那么命令停止执行并退出
+# 以linux-3.10.14/scripts/Makefile.build中下面语句为例：
+# $(obj)/%.o: $(src)/%.c $(recordmcount_source) FORCE
+#	$(call cmd,force_checksrc)
+#	$(call if_changed_rule,cc_o_c)
+# $(cmd_$(1))即为$(cmd_cc_o_c),在linux-3.10.14/scripts/Makefile.build有定义cmd_cc_o_c = $(CC) $(c_flags) -c -o $@ $<
 #
+# 分析$(echo-cmd) $(cmd_$(1))，如下
+# echo-cmd见本文件前面定义
+# echo-cmd = $(if $($(quiet)cmd_$(1)),\
+#	echo '  $(call escsq,$($(quiet)cmd_$(1)))$(echo-why)';)
+# 等价于echo-cmd = $(if $($(quiet)cmd_cc_o_c), echo '  $(call escsq,$($(quiet)cmd_cc_o_c))$(echo-why)';)
+# escsq在本文件前面定义，escsq = $(subst $(squote),'\$(squote)',$1)
+# $(echo-why)在本文件后面定义，告诉本次编译的原因，我们这里不分析，略去它，
+# 那么$(call escsq,$($(quiet)cmd_cc_o_c))$(echo-why)可以简化成$(call escsq,$($(quiet)cmd_cc_o_c))
+# escsq函数在本文件前面定义escsq = $(subst $(squote),'\$(squote)',$1)
+# 上面的$1即为$($(quiet)cmd_cc_o_c)，escsq相当于把$1中的单引号用\反引用，不然的话，echo命令本来就有单引号，
+# 如果$1中再有单引号的话，就会有问题。 
+# $(echo-cmd) $(cmd_$(1));  意思就是将$(cmd_$(1)作为参数传给$(echo-cmd)，$(echo-cmd)会把$(cmd_$(1))中的单引号用\反应用，
+# 然后通过echo把$(cmd_$(1))打出来
+#
+# $(dot-target).cmd)是指各个子目录中的隐藏文件，比如linux-3.10.14/fs目录中的.read_write.o.cmd文件
 if_changed = $(if $(strip $(any-prereq) $(arg-check)),                       \
 	@set -e;                                                             \
 	$(echo-cmd) $(cmd_$(1));                                             \
