@@ -136,7 +136,7 @@ PHONY += $(MAKECMDGOALS) sub-make
 
 # $(filter-out PATTERN...,TEXT)
 # 函数名称：反过滤函数—filter-out。 
-# 函数功能：和“filter”函数实现的功能相反。过滤掉字串“TEXT”中所有符合模式“PATTERN”的单词，保留所有不符合此模式的单词。
+# 函数功能：过滤掉字串“TEXT”中所有符合模式“PATTERN”的单词，保留所有不符合此模式的单词。
 # 可以有多个模式。模式表达式之间使用空格分割。
 # MAKECMDGOALS是makefile的环境变量，记录了命令行参数指定的终极目标列表，没有通过参数指定终极目标时此变量为空。
 $(filter-out _all sub-make $(CURDIR)/Makefile, $(MAKECMDGOALS)) _all: sub-make
@@ -357,6 +357,7 @@ export quiet Q KBUILD_VERBOSE
 MAKEFLAGS += --include-dir=$(srctree)
 
 # We need some generic definitions (do not try to remake the file).
+# Kbuild.include被Makefile.build所调用，定义了一些函数，如if_changed、if_changed_rule、echo-cmd
 $(srctree)/scripts/Kbuild.include: ;
 include $(srctree)/scripts/Kbuild.include
 
@@ -1454,7 +1455,8 @@ cmd_crmodverdir = $(Q)mkdir -p $(MODVERDIR) \
                   $(if $(KBUILD_MODULES),; rm -f $(MODVERDIR)/*)
 
 # read all saved command lines
-
+# 在linux-3.10.14/scripts/Kbuild.include中if_changed目标会生成隐藏文件$(dot-target).cmd，
+# 该文件中存放之前编译的命令
 targets := $(wildcard $(sort $(targets)))
 cmd_files := $(wildcard .*.cmd $(foreach f,$(targets),$(dir $(f)).$(notdir $(f)).cmd))
 
