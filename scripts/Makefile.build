@@ -395,6 +395,7 @@ cmd_link_o_target = $(if $(strip $(obj-y)),\
 # obi-y定义在linux-3.10.14各个子目录中的Makefile中，比如linux-3.10.14/fs/Makefile中obj-y :=	open.o read_write.o等等.o文件。
 # builtin-target的构建规则说明，该builtin-target目标依赖于各个子目录中的Makefile中的.o文件，而这些.o文件又通过本文件中的目录$(obj)/%.o构建。
 # if_changed定义在linux-3.10.14\scripts\Kbuild.include中
+# 在$(call if_changed,link_o_target)会执行cmd_link_o_target目标，该目标定义见本文件上面。
 $(builtin-target): $(obj-y) FORCE
 	$(call if_changed,link_o_target)
 
