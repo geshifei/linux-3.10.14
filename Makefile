@@ -168,6 +168,7 @@ ifeq ($(skip-makefile),)
 
 # If building an external module we do not care about the all: rule
 # but instead _all depend on modules
+# 如果编译的不是外部模块，_all依赖all，如果编译外部模块，_all依赖于modules
 PHONY += all
 ifeq ($(KBUILD_EXTMOD),)
 _all: all
@@ -461,7 +462,13 @@ scripts_basic:
 # Make进入由参数-f指定的Make文件scripts/Makefile.build，并传入参数obj=build_dir 和argv。
 # 在scripts/Makefile.build的处理过程中，传入的参数$(obj)代表此次Make命令要处理（编译、链接、和生成）文件所在的目录，
 # 该目录下通常都会存在的Makefile文件会被Makefile.build包含。$(obj)目录下的Makefile记为$(obj)/Makefile。
-# 当没有参数[argv]时，该Make命令没有指定目标。这时会使用Makefile.build中的默认目标__build。然后更进一步，会使用$(obj)/Makefile中定义的变量来进行目标匹配。
+# 当没有参数[argv]时，该Make命令没有指定目标。这时会使用Makefile.build中的默认目标__build。
+# 然后更进一步，会使用$(obj)/Makefile中定义的变量来进行目标匹配。
+#
+# $(obj)/Makefile即scripts/basic/Makefile包含了编译两个主机程序fixdep和bin2的目标。
+# fixdep：用来优化gcc生成的依赖列表，然后在重新编译源文件的时候告诉make。
+# bin2c依赖于内核配置选项CONFIG_BUILD_BIN2C，它是一个用来将标准输入接口(stdin)收到的
+# 二进制流通过标准输出接口(stdout)转换成C头文件的非常小的C程序.
 	$(Q)$(MAKE) $(build)=scripts/basic
 	$(Q)rm -f .tmp_quiet_recordmcount
 
@@ -781,6 +788,13 @@ export mod_sign_cmd
 ifeq ($(KBUILD_EXTMOD),)
 core-y		+= kernel/ mm/ fs/ ipc/ security/ crypto/ block/
 
+# vmlinux-dirs的依赖关系在后面
+# init-y		:= init/  在本文件前面第一次定义，在本文件后面也会再次定义
+# vmlinux-dirs先通过$(filter %/, $(init-y) $(init-m)等等获取到目录，比如init/，
+# 然后通过 $(patsubst %/,%把最后的/去掉，即init/变成init。
+# 
+# vmlinux-dirs的作用就是获取init-y、init-m、core-y、等等定义的目录名称，
+# 也就是linux-3.10.14下的init目录、kernel目录、mm目录等。
 vmlinux-dirs	:= $(patsubst %/,%,$(filter %/, $(init-y) $(init-m) \
 		     $(core-y) $(core-m) $(drivers-y) $(drivers-m) \
 		     $(net-y) $(net-m) $(libs-y) $(libs-m)))
@@ -799,6 +813,10 @@ libs-y2		:= $(patsubst %/, %/built-in.o, $(libs-y))
 libs-y		:= $(libs-y1) $(libs-y2)
 
 # Externally visible symbols (used by link-vmlinux.sh)
+# head-y是和机器有关的变量，定义在arch内的Makefile里，比如x86定义在linux-3.10.14/arc/x86/Makefile中，
+# 其他的比如core-y在arc对应的处理器架构中的Makefile也会+=赋值。
+# 在本文件的前面会包含arch内的Makefile，语句如下：
+# include $(srctree)/arch/$(SRCARCH)/Makefile
 export KBUILD_VMLINUX_INIT := $(head-y) $(init-y)
 export KBUILD_VMLINUX_MAIN := $(core-y) $(libs-y) $(drivers-y) $(net-y)
 export KBUILD_LDS          := arch/$(SRCARCH)/kernel/vmlinux.lds
@@ -806,6 +824,7 @@ export LDFLAGS_vmlinux
 # used by scripts/pacmage/Makefile
 export KBUILD_ALLDIRS := $(sort $(filter-out arch/%,$(vmlinux-alldirs)) arch Documentation include samples scripts tools virt)
 
+# vmlinux-deps这里是赋值，依赖关系见本文件后面$(sort $(vmlinux-deps)): $(vmlinux-dirs) ;
 vmlinux-deps := $(KBUILD_LDS) $(KBUILD_VMLINUX_INIT) $(KBUILD_VMLINUX_MAIN)
 
 # Final link of vmlinux
@@ -828,6 +847,8 @@ endif
 
 # The actual objects are generated when descending, 
 # make sure no implicit rule kicks in
+# $(sort LIST) 排序函数，给字串“LIST”中的单词以首字母为准进行排序（升序），
+# 并取掉重复的单词，返回值空格分割的没有重复单词的字串。 
 $(sort $(vmlinux-deps)): $(vmlinux-dirs) ;
 
 # Handle descending into subdirectories listed in $(vmlinux-dirs)
@@ -835,7 +856,18 @@ $(sort $(vmlinux-deps)): $(vmlinux-dirs) ;
 # tweaks to this spot to avoid wrong language settings when running
 # make menuconfig etc.
 # Error messages still appears in the original language
-
+# 变量vmlinux-dirs的值是多个目录（见本文件前面分析），所以构建vmlinux-dirs的规则也是一个多目标规则，等价于：
+# init: prepare scripts  
+#    $(Q)$(MAKE) $(build)=$@  
+# kernel: prepare scripts  
+#    $(Q)$(MAKE) $(build)=$@ 
+# 规则中的命令展开后为make -f script/Makefile.build obj=$@，
+# 即相当于逐个编译这些子目录，使用的Makefile是Makefile.build。
+# Makefile.build将包含构建目录中的Makefile或Kbuild，最终形成完整地Makefile。
+# make命令中没有显式指定构建目标，因此，将构建Makefile.build中默认的目标__build。
+#
+#prepare的依赖关系见本文件后面prepare: prepare0
+#
 PHONY += $(vmlinux-dirs)
 $(vmlinux-dirs): prepare scripts
 	$(Q)$(MAKE) $(build)=$@
@@ -875,6 +907,19 @@ prepare1: prepare2 $(version_h) include/generated/utsrelease.h \
                    include/config/auto.conf
 	$(cmd_crmodverdir)
 
+# archheaders生成的系统调用列表（syscall table），定义在linux-3.10.14/arc/x86/Makefile中，内容如下：
+# archheaders:
+#	$(Q)$(MAKE) $(build)=arch/x86/syscalls all
+#
+#
+# archscripts也定义在linux-3.10.14/arc/x86/Makefile中，内容如下：
+# archscripts: scripts_basic
+#	$(Q)$(MAKE) $(build)=arch/x86/tools relocs
+# archscripts是依赖于根Makefile里的scripts_basic 。首先我们可以看出scripts_basic是
+# 按照scripts/basic的makefile执行make的
+#
+#
+#
 archprepare: archheaders archscripts prepare1 scripts_basic
 
 prepare0: archprepare FORCE
