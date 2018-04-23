@@ -907,19 +907,19 @@ prepare1: prepare2 $(version_h) include/generated/utsrelease.h \
                    include/config/auto.conf
 	$(cmd_crmodverdir)
 
-# archheaders生成的系统调用列表（syscall table），定义在linux-3.10.14/arc/x86/Makefile中，内容如下：
+# archheaders定义在linux-3.10.14/arc/x86/Makefile中,生成系统调用列表(syscall table),内容如下：
 # archheaders:
 #	$(Q)$(MAKE) $(build)=arch/x86/syscalls all
 #
 #
-# archscripts也定义在linux-3.10.14/arc/x86/Makefile中，内容如下：
+# archscripts定义在linux-3.10.14/arc/x86/Makefile中,内容如下：
 # archscripts: scripts_basic
 #	$(Q)$(MAKE) $(build)=arch/x86/tools relocs
-# archscripts是依赖于根Makefile里的scripts_basic 。首先我们可以看出scripts_basic是
-# 按照scripts/basic的makefile执行make的
-#
-#
-#
+# 依赖关系scripts_basic定义在本文件前面,用来编译两主机程序fixdep,内容如下:
+# scripts_basic:
+# 	$(Q)$(MAKE) $(build)=scripts/basic
+# fixdep用来优化gcc生成的依赖列表，然后在重新编译源文件的时候告诉make.
+# 
 archprepare: archheaders archscripts prepare1 scripts_basic
 
 prepare0: archprepare FORCE

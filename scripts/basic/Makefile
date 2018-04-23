@@ -7,7 +7,7 @@
 # .config is included by main Makefile.
 # ---------------------------------------------------------------------------
 # fixdep: 	 Used to generate dependency information during build process
-# hostprogs-y告诉kbuild这里有个名为fixedp的程序，这个程序会通过和Makefile相同目录的fixdep.c编译而来。
+# hostprogs-y告诉kbuild这里有个名为fixedp的程序,这个程序会通过和Makefile相同目录的fixdep.c编译而来.
 hostprogs-y	:= fixdep
 always		:= $(hostprogs-y)
 
