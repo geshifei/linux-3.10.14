@@ -106,6 +106,8 @@ endif
 
 # KBUILD_SRC is set on invocation of make in OBJ directory
 # KBUILD_SRC is not intended to be used by the regular user (for now)
+# 注意，本Makefile会被执行2次,看后面分析.
+# 当我们输入"make O=dir [Targets]"命令的时候,会第一次调用顶层Makefile.此时变量KBUILD_SRC没有定义,所以会进入到下面ifeq-endif块.
 ifeq ($(KBUILD_SRC),)
 
 # OK, Make called in directory where kernel src resides
@@ -128,6 +130,9 @@ _all:
 # Cancel implicit rules on top Makefile
 $(CURDIR)/Makefile Makefile: ;
 
+# 第一次进入ifeq ($(KBUILD_SRC),)语句块，前面设置了KBUILD_OUTPUT,所以会执行下面的ifneq ($(KBUILD_OUTPUT),)语句块.
+# 在下面的逻辑中可以看出,不管命令"make O=dir [Targets]"中的Targets个数有多少个,它们都是要依赖于 sub-make.
+# 所以ifneq ($(KBUILD_OUTPUT),)语句块,其实就是执行sub-make规则的命令。
 ifneq ($(KBUILD_OUTPUT),)
 # Invoke a second make in the output directory, passing relevant variables
 # check that the output directory actually exists
@@ -166,6 +171,8 @@ sub-make: FORCE
 	$(filter-out _all sub-make,$(MAKECMDGOALS))
 
 # Leave processing to above invocation of make
+#
+# 构建完成_all后,把skip-makefile赋值,指定要输出到另外目录时设置.
 skip-makefile := 1
 endif # ifneq ($(KBUILD_OUTPUT),)
 endif # ifeq ($(KBUILD_SRC),)
