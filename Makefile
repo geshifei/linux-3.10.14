@@ -14,9 +14,17 @@ NAME = TOSSUG Baby Fish
 # o  use make's built-in rules and variables
 #    (this increases performance and avoids hard-to-debug behaviour);
 # o  print "Entering directory ...";
+# MAKEFLAGS这个环境变量不管有没有export，总会传递到下层Makefile中,
+# 如果定义环境变量MAKEFLAGS,那么得确信其中的选项是大家都会用到的.
+# -r 或者 --no-builtin-rules,禁止make使用任何隐含规则.
+# -R 或者 --no-builtin-variabes,禁止make使用任何作用于变量上的隐含规则.
+# --no-print-directory禁止-w 或者 --print-directory选项,
+# -w 或者 --print-directory会在make的过程中输出当前的工作目录信息.
 MAKEFLAGS += -rR --no-print-directory
 
 # Avoid funny character set dependencies
+# unexport <variable ...> 不让变量传递到下级makefile.
+# export <variable ...> 传递变量到下级makefile.
 unexport LC_ALL
 LC_COLLATE=C
 LC_NUMERIC=C
@@ -40,7 +48,7 @@ export LC_COLLATE LC_NUMERIC
 
 # To put more focus on warnings, be less verbose as default
 # Use 'make V=1' to see the full commands
-
+# $(origin <variable> )获取变量是哪里来的,command line说明这个变量是被命令行定义的.
 ifeq ("$(origin V)", "command line")
   KBUILD_VERBOSE = $(V)
 endif
@@ -76,7 +84,6 @@ endif
 # 1、在命令行用M＝...
 # 2、环境变量KBUILD_EXTMOD
 # 3、环境变量SUBDIRS
-# 用M＝。。。会覆盖其它两种情况
 ifeq ("$(origin M)", "command line")
   KBUILD_EXTMOD := $(M)
 endif
@@ -103,13 +110,13 @@ ifeq ($(KBUILD_SRC),)
 
 # OK, Make called in directory where kernel src resides
 # Do we want to locate output files in a separate directory?
-# 编译内核时输出文件的输出目录。
-# 输出目录可以通过 O=... 来指定， O＝。。。优先级要高于KBUILD_OUTPUT
+# 编译内核时输出文件的输出目录.
+# 输出目录可以通过 O=... 来指定,优先级要高于KBUILD_OUTPUT
 ifeq ("$(origin O)", "command line")
   KBUILD_OUTPUT := $(O)
 endif
 
-# 打开gcc的－w选项
+# 打开gcc的－W选项,显示编译器认为会出现错误的警告.
 ifeq ("$(origin W)", "command line")
   export KBUILD_ENABLE_EXTRA_GCC_CHECKS := $(W)
 endif
