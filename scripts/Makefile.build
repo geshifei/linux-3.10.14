@@ -146,16 +146,13 @@ modorder-target := $(obj)/modules.order
 
 # We keep a list of all modules in $(MODVERDIR)
 
-# KBUILD_BUILTIN定义见linux-3.10.14中的Makefile
+# KBUILD_BUILTIN定义见linux-3.10.14/Makefile
 # 如果 KBUILD_BUILTIN为1 那么构建 $(builtin-target) $(lib-target) $(extra-y)
 # 如果 KBUILD_MODULES为1 那么构建 $(obj-m) $(modorder-target)
-# $(subdir-ym) $(always)这两个依赖，是一直构建的。
+# $(subdir-ym) $(always)这两个依赖，默认构建.
 #
-# 目标__build涵盖了内核映像和模块，这里我们只关注内核映像的构建，不关注模块的构建。
-# 对于编译内核映像来说，目标__build依赖builtin-target、lib-target、extra-y、subdir-ym和always。
-#
-# 编译内核时需要一些临时工具，比如mkpiggy、build等，这些是一定需要编译的，因为构建内核时会用到。
-# 因此，kbuild中定义了一个变量always，其中记录的就是必须要编译的构建目标。
+# 构建内核需要一些临时工具,比如mkpiggy、build等,这些是一定需要编译的,
+# 因此,kbuild中定义变量always记录必须要构建的目标.
 #
 __build: $(if $(KBUILD_BUILTIN),$(builtin-target) $(lib-target) $(extra-y)) \
 	 $(if $(KBUILD_MODULES),$(obj-m) $(modorder-target)) \

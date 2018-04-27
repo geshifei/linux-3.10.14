@@ -20,6 +20,10 @@ xconfig: $(obj)/qconf
 gconfig: $(obj)/gconf
 	$< $(Kconfig)
 
+# 执行make menuconfig,$(obj)=scripts/kconfig
+# pwd当前目录为linux根目录linux-3.10.14
+# $(Kconfig)为linux-3.10.14/Kconfig文件
+# 即在linux3.10.14目录执行mconf可执行程序: ./scripts/kconfig/mconf Kconfig
 menuconfig: $(obj)/mconf
 	$< $(Kconfig)
 

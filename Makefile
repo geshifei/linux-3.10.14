@@ -490,9 +490,9 @@ export RCS_TAR_IGNORE := --exclude SCCS --exclude BitKeeper --exclude .svn \
 # Basic helpers built in scripts/
 PHONY += scripts_basic
 scripts_basic:
-# build的定义见linux-3.10.14/Kbuild.include:
+# build定义见linux-3.10.14/scripts/Kbuild.include:
 # build := -f $(if $(KBUILD_SRC),$(srctree)/)scripts/Makefile.build obj
-# build使用的一般形式为：$(MAKE) $(build)=build_dir  [argv]
+# build使用的一般形式为:$(MAKE) $(build)=build_dir  [argv]
 # make命令采用-f指定的scripts/Makefile.build文件运行,并传入参数obj=build_dir 和argv.
 # 参数$(obj)表示make命令要处理(编译,链接,和生成)文件所在的目录.Makefile.build包含.$(obj)目录下的Makefile记为$(obj)/Makefile.
 # 当没有参数[argv]时,Make命令没有指定目标,这时会使用Makefile.build中的默认目标__build.
@@ -566,6 +566,12 @@ ifeq ($(mixed-targets),1)
 # We're called with mixed targets (*config and build targets).
 # Handle them one by one.
 
+# 双冒号规则:
+# 1)依赖文件比目标更新,执行命令行
+# 2)只有命令行没有依赖,引用此目标时,命令行将无条件执行.而普通规则,此场景下如果目标文件存在,那么命令行永远不会被执行(目标文件永远是最新的)
+# %表示任何目标都使用这个规则.如果执行make first all,那么构建系统执行:
+# 1)make -C $(srctree) KBUILD_SRC= first
+# 2)make -C $(srctree) KBUILD_SRC= all
 %:: FORCE
 	$(Q)$(MAKE) -C $(srctree) KBUILD_SRC= $@
 
@@ -585,6 +591,11 @@ config: scripts_basic outputmakefile FORCE
 	$(Q)mkdir -p include/linux include/config
 	$(Q)$(MAKE) $(build)=scripts/kconfig $@
 
+# make menuconfig流程:
+# build定义见linux-3.10.14/scripts/Kbuild.include:
+# build := -f $(if $(KBUILD_SRC),$(srctree)/)scripts/Makefile.build obj
+# 下面build语句等价于$(Q)$(MAKE) -f scripts/Makefile.build obj=scripts/kconfig menuconfig
+# 即编译linux-3.10.14/scripts/kconfig/Makefile中的menuconfig目标
 %config: scripts_basic outputmakefile FORCE
 	$(Q)mkdir -p include/linux include/config
 	$(Q)$(MAKE) $(build)=scripts/kconfig $@
@@ -654,6 +665,13 @@ endif # $(dot-config)
 # command line.
 # This allow a user to issue only 'make' to build a kernel including modules
 # Defaults to vmlinux, but the arch makefile usually adds further targets
+# 本文件默认的目标是all,依赖于vmlinux,vmlinux生成规则见本文件后面,如下:
+# vmlinux: scripts/link-vmlinux.sh $(vmlinux-deps) FORCE
+#	+$(call if_changed,link-vmlinux)
+# scripts/link-vmlinux.sh 是一个事先写好的脚本,与Kbuild系统无关.
+# FORCE是一个伪目标,表示目标vmlinux需要重新生成.
+# 所以vmlinux的编译,主要要分析$(vmlinux-deps)的实现,$(vmlinux-deps)赋值见本文件后面:
+# vmlinux-deps := $(KBUILD_LDS) $(KBUILD_VMLINUX_INIT) $(KBUILD_VMLINUX_MAIN)
 all: vmlinux
 
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
@@ -822,12 +840,13 @@ ifeq ($(KBUILD_EXTMOD),)
 core-y		+= kernel/ mm/ fs/ ipc/ security/ crypto/ block/
 
 # vmlinux-dirs的依赖关系在后面
-# init-y		:= init/  在本文件前面第一次定义，在本文件后面也会再次定义
-# vmlinux-dirs先通过$(filter %/, $(init-y) $(init-m)等等获取到目录，比如init/，
-# 然后通过 $(patsubst %/,%把最后的/去掉，即init/变成init。
-# 
-# vmlinux-dirs的作用就是获取init-y、init-m、core-y、等等定义的目录名称，
-# 也就是linux-3.10.14下的init目录、kernel目录、mm目录等。
+# init-y见本文件前面,为init/
+# core-y在本文件中为usr/ kernel/ mm/ fs/ ipc/ security/ crypto/ block/
+# drivers-y见本文件前面,为drivers/ sound/ firmware/
+# libs-y见本文件前面,为lib/
+# net-y见本文件前面,为net/
+# vmlinux-dirs先通过$(filter %/, $(init-y) $(init-m)...获取目录,比如init/,
+# 然后通过 $(patsubst %/,%把最后的/去掉,即init/变成init.
 vmlinux-dirs	:= $(patsubst %/,%,$(filter %/, $(init-y) $(init-m) \
 		     $(core-y) $(core-m) $(drivers-y) $(drivers-m) \
 		     $(net-y) $(net-m) $(libs-y) $(libs-m)))
@@ -846,9 +865,14 @@ libs-y2		:= $(patsubst %/, %/built-in.o, $(libs-y))
 libs-y		:= $(libs-y1) $(libs-y2)
 
 # Externally visible symbols (used by link-vmlinux.sh)
-# head-y是和机器有关的变量，定义在arch内的Makefile里，比如x86定义在linux-3.10.14/arc/x86/Makefile中，
-# 其他的比如core-y在arc对应的处理器架构中的Makefile也会+=赋值。
-# 在本文件的前面会包含arch内的Makefile，语句如下：
+# head-y变量和机器有关,定义见linux-3.10.14/arc/x86/Makefile中,是几个head*o文件.
+# init-y见本文件前面,为init/
+# core-y在本文件中为usr/ kernel/ mm/ fs/ ipc/ security/ crypto/ block/,linux-3.10.14/arc/x86/Makefile中追加arch/x86/
+# libs-y见本文件前面,为lib/
+# drivers-y见本文件前面,为drivers/ sound/ firmware/
+# net-y见本文件前面,为net/
+# 上面的init-y,core-y,libs-y,drivers-y,net-y为目录,经过本文件前面的patsubst处理后变成: 目录名/built-in.o
+# 在本文件的前面会包含arch内的Makefile,语句如下:
 # include $(srctree)/arch/$(SRCARCH)/Makefile
 export KBUILD_VMLINUX_INIT := $(head-y) $(init-y)
 export KBUILD_VMLINUX_MAIN := $(core-y) $(libs-y) $(drivers-y) $(net-y)
@@ -857,7 +881,8 @@ export LDFLAGS_vmlinux
 # used by scripts/pacmage/Makefile
 export KBUILD_ALLDIRS := $(sort $(filter-out arch/%,$(vmlinux-alldirs)) arch Documentation include samples scripts tools virt)
 
-# vmlinux-deps这里是赋值，依赖关系见本文件后面$(sort $(vmlinux-deps)): $(vmlinux-dirs) ;
+# vmlinux-deps这里是赋值,是一个多目标,依赖关系见本文件后面,如下:
+# $(sort $(vmlinux-deps)): $(vmlinux-dirs) ;
 vmlinux-deps := $(KBUILD_LDS) $(KBUILD_VMLINUX_INIT) $(KBUILD_VMLINUX_MAIN)
 
 # Final link of vmlinux
@@ -889,15 +914,16 @@ $(sort $(vmlinux-deps)): $(vmlinux-dirs) ;
 # tweaks to this spot to avoid wrong language settings when running
 # make menuconfig etc.
 # Error messages still appears in the original language
-# 变量vmlinux-dirs的值是多个目录（见本文件前面分析），所以构建vmlinux-dirs的规则也是一个多目标规则，等价于：
+# vmlinux-dirs值是多个目录(见本文件前面分析,所以构建vmlinux-dirs的规则也是一个多目标规则,等价于:
 # init: prepare scripts  
 #    $(Q)$(MAKE) $(build)=$@  
 # kernel: prepare scripts  
 #    $(Q)$(MAKE) $(build)=$@ 
-# 规则中的命令展开后为make -f script/Makefile.build obj=$@，
-# 即相当于逐个编译这些子目录，使用的Makefile是Makefile.build。
-# Makefile.build将包含构建目录中的Makefile或Kbuild，最终形成完整地Makefile。
-# make命令中没有显式指定构建目标，因此，将构建Makefile.build中默认的目标__build。
+# 等等......
+# 规则中的命令展开后为make -f script/Makefile.build obj=$@,
+# 即相当于逐个编译这些子目录,使用的Makefile是Makefile.build.
+# Makefile.build包含构建目录中的Makefile或Kbuild,最终形成完整的Makefile.
+# make命令中没有显式指定构建目标,因此将构建Makefile.build中默认目标__build.
 #
 #prepare的依赖关系见本文件后面prepare: prepare0
 #
