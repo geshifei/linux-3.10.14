@@ -881,7 +881,7 @@ export LDFLAGS_vmlinux
 # used by scripts/pacmage/Makefile
 export KBUILD_ALLDIRS := $(sort $(filter-out arch/%,$(vmlinux-alldirs)) arch Documentation include samples scripts tools virt)
 
-# vmlinux-deps这里是赋值,是一个多目标,依赖关系见本文件后面,如下:
+# vmlinux-deps赋值,是一个多目标,依赖关系见本文件后面,如下:
 # $(sort $(vmlinux-deps)): $(vmlinux-dirs) ;
 vmlinux-deps := $(KBUILD_LDS) $(KBUILD_VMLINUX_INIT) $(KBUILD_VMLINUX_MAIN)
 
@@ -891,6 +891,14 @@ quiet_cmd_link-vmlinux = LINK    $@
 
 # Include targets which we want to
 # execute if the rest of the kernel build went well.
+# scripts/link-vmlinux.sh是事先写好的脚本,主要要分析$(vmlinux-deps)
+# $(vmlinux-deps)的展开分析:
+# vmlinux-deps := $(KBUILD_LDS) $(KBUILD_VMLINUX_INIT) $(KBUILD_VMLINUX_MAIN)
+# vmlinux-deps := arch/$(SRCARCH)/kernel/vmlinux.lds $(head-y) $(init-y) $(core-y) $(libs-y) $(drivers-y) $(net-y)
+# vmlinux-deps := arch/$(SRCARCH)/kernel/vmlinux.lds head*o init/built-in.o usr/built-in.o kernel/built-in.o mm/built-in.o fs/built-in.o等等.
+# 也就是说vmlinux-deps依赖于各个子目录中的built-in.o文件.
+# if_changed定义在linux-3.10.14/scripts/Kbuild.include.
+# if_changed的说明:Execute command if command has changed or prerequisite(s) are updated.
 vmlinux: scripts/link-vmlinux.sh $(vmlinux-deps) FORCE
 ifdef CONFIG_HEADERS_CHECK
 	$(Q)$(MAKE) -f $(srctree)/Makefile headers_check
@@ -905,8 +913,8 @@ endif
 
 # The actual objects are generated when descending, 
 # make sure no implicit rule kicks in
-# $(sort LIST) 排序函数，给字串“LIST”中的单词以首字母为准进行排序（升序），
-# 并取掉重复的单词，返回值空格分割的没有重复单词的字串。 
+# $(sort LIST) 排序函数,给字串LIST中的单词以首字母为准进行升序排序,
+# 并取掉重复的单词,返回值空格分割的没有重复单词的字串.
 $(sort $(vmlinux-deps)): $(vmlinux-dirs) ;
 
 # Handle descending into subdirectories listed in $(vmlinux-dirs)

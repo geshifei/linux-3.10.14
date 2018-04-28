@@ -200,21 +200,22 @@ objectify = $(foreach o,$(1),$(if $(filter /%,$(o)),$(o),$(obj)/$(o)))
 # if_changed_rule - as if_changed but execute rule instead
 # See Documentation/kbuild/makefiles.txt for more info
 
-# 分析KBUILD_NOCMDDEP不为1的场景;以linux-3.10.14/scripts/Makefile.build中的builtin-target为例：
+# 以linux-3.10.14/scripts/Makefile.build中的builtin-target为例:
 # $(builtin-target): $(obj-y) FORCE
 #	$(call if_changed,link_o_target)
-# if_changed的定义见本文件后文
-# $(1)表示第一个参数link_o_target，$@表示目标文件。在上面例子中推导如下，
-# 上面的规则依赖于$(obj-y),故需要首先重建依赖$(obj-y)，
-# $(obj-y)由linux-3.10.14各个子目录中的Makefile定义，依赖一些%.o文件，故$@为$(obj)/%.o，
-# 这里的obj是build命令指定的参数，比如linux-3.10.14/Makefile中的scripts_basic目标示例。
-# linux-3.10.14/scripts/Makefile.build中include $(kbuild-file)包含了各个子目录中的Makefile文件。
-# 在linux-3.10.14/scripts/Makefile.build中定义了$(obj)/%.o的生成方式，为.S和.c文件生成：
+# if_changed定义见本文件后面,$(1)表示第一个参数link_o_target,$@表示目标文件.
+# $(obj-y)由linux-3.10.14各个子目录中的Makefile定义,依赖一些%.o文件(见本段注释后面).
+# 因为生成$(builtin-target)前,需要先生成$(obj-y),故$@为$(obj)/%.o
+# 这里的obj是build命令指定的参数,比如下面命令展开后obj=scripts/basic
+# scripts_basic:
+# $(Q)$(MAKE) $(build)=scripts/basic
+# linux-3.10.14/scripts/Makefile.build中include $(kbuild-file)包含了各个子目录中的Makefile文件.
+# 在linux-3.10.14/scripts/Makefile.build中定义了$(obj)/%.o的生成方式，为.S和.c文件生成:
 # $(obj)/%.o: $(src)/%.c $(recordmcount_source) FORCE
 #	$(call cmd,force_checksrc)
 #	$(call if_changed_rule,cc_o_c)
 #
-# 以linux-3.10.14/fs目录为例，其中的Makefile中有：obj-y :=	open.o read_write.o file_table.o 等等.o文件
+# 以linux-3.10.14/fs/Makefile中有obj-y :=	open.o read_write.o file_table.o 等等.o文件
 # $(filter-out $(cmd_$(1)), $(cmd_$@))即为$(filter-out $(cmd_cc_o_c), $(cmd_fs/open.o))
 # 编译linux后，在fs目录中有隐藏文件.open.o.cmd，该文件的第一行如下，用来保存上次编译的参数：
 # cmd_fs/open.o := mips-openwrt-linux-uclibc-gcc -Wp,-MD,fs/.open.o.d  -nostdinc -is等等
@@ -250,17 +251,17 @@ make-cmd = $(subst \\,\\\\,$(subst \#,\\\#,$(subst $$,$$$$,$(call escsq,$(cmd_$(
 # PHONY targets skipped in both cases.
 # $? 表示所有比目标还要新的依赖文件
 # $^ 表示所有的依赖文件
-# wildcard函数，它有一个参数，功能是展开成一列所有符合由其参数描述的文件名，文件间以空格间隔，
-# 首先使用 $(filter-out $(PHONY),$?) 将 $? 中的所有伪目标去掉，不然可能会将 FORCE 这种目标也带进来，
-# 如果此时返回非空，那么说明有比目标还要新的依赖文件。
-# $(wildcard $^)匹配当前目录下的所有依赖文件(已经存在的)，然后再使用 $(filter-out $(PHONY) $(wildcard $^),$^)
-# 将伪目标以及当前目录下匹配的文件列表从整个 $^ 列表中删除，如果返回不为空，那么说明某些依赖文件不存在，
-# 也就是说这些不存在的依赖文件还没生成---这是因为某些依赖文件需要在编译时才会生成。
+# $(wildcard PATTERN...)展开为已经存在的、使用空格分开的、匹配此模式的所有文件列表.
+# 首先使用$(filter-out $(PHONY),$?)将$?中所有伪目标去掉,不然可能会将FORCE这种目标也带进来,
+# 如果此时返回非空,那么说明有比目标还要新的依赖文件.
+# $(wildcard $^)匹配当前目录下的所有依赖文件(已经存在的),然后再使用 $(filter-out $(PHONY) $(wildcard $^),$^)
+# 将伪目标以及当前目录下匹配的文件列表从整个$^列表中删除,如果返回不为空,那么说明某些依赖文件不存在,
+# 需要在编译时生成。
 any-prereq = $(filter-out $(PHONY),$?) $(filter-out $(PHONY) $(wildcard $^),$^)
 
 # Execute command if command has changed or prerequisite(s) are updated.
-# set -e 表示如果命令执行有错那么命令停止执行并退出
-# 以linux-3.10.14/scripts/Makefile.build中下面语句为例：
+# set -e:如果命令执行有错,那么命令停止执行并退出.
+# 以linux-3.10.14/scripts/Makefile.build中下面语句为例:
 # $(obj)/%.o: $(src)/%.c $(recordmcount_source) FORCE
 #	$(call cmd,force_checksrc)
 #	$(call if_changed_rule,cc_o_c)
@@ -281,6 +282,16 @@ any-prereq = $(filter-out $(PHONY),$?) $(filter-out $(PHONY) $(wildcard $^),$^)
 # 然后通过echo把$(cmd_$(1))打出来
 #
 # $(dot-target).cmd)是指各个子目录中的隐藏文件，比如linux-3.10.14/fs目录中的.read_write.o.cmd文件
+#
+#
+# 以linux-3.10.14/Makefile中的vmlinux为例:
+# vmlinux: scripts/link-vmlinux.sh $(vmlinux-deps) FORCE
+#	+$(call if_changed,link-vmlinux)
+# $(any-prereq)表示有比目标新的依赖,或者有依赖不存在需要重新生成.
+# arg-check = $(strip $(filter-out $(cmd_$(1)), $(cmd_$@)) \
+#                    $(filter-out $(cmd_$@),   $(cmd_$(1))) )
+#
+#
 if_changed = $(if $(strip $(any-prereq) $(arg-check)),                       \
 	@set -e;                                                             \
 	$(echo-cmd) $(cmd_$(1));                                             \
