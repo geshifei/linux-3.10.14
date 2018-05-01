@@ -9,8 +9,8 @@ space   := $(empty) $(empty)
 
 ###
 # Name of target with a '.' as filename prefix. foo/bar.o => foo/.bar.o
-# 函数$(dir <names...>) 从文件名序列<names>中取出目录部分。目录部分是指最后一个反斜杠（“/”）之前的部分。如果没有反斜杠，那么返回“./”。
-# $(notdir <names...>) 从文件名序列<names>中取出非目录部分。非目录部分是指最後一个反斜杠（“/”）之后的部分。
+# $(dir <names...>)从文件名<names>中取出目录部分.目录部分是指最后一个反斜杠（“/”）之前的部分.如果没有反斜杠,那么返回“./”。
+# $(notdir <names...>)从文件名<names>中取出非目录部分.非目录部分是指最後一个反斜杠（“/”）之后的部分.
 dot-target = $(dir $@).$(notdir $@)
 
 ###
@@ -261,28 +261,6 @@ any-prereq = $(filter-out $(PHONY),$?) $(filter-out $(PHONY) $(wildcard $^),$^)
 
 # Execute command if command has changed or prerequisite(s) are updated.
 # set -e:如果命令执行有错,那么命令停止执行并退出.
-# 以linux-3.10.14/scripts/Makefile.build中下面语句为例:
-# $(obj)/%.o: $(src)/%.c $(recordmcount_source) FORCE
-#	$(call cmd,force_checksrc)
-#	$(call if_changed_rule,cc_o_c)
-# $(cmd_$(1))即为$(cmd_cc_o_c),在linux-3.10.14/scripts/Makefile.build有定义cmd_cc_o_c = $(CC) $(c_flags) -c -o $@ $<
-#
-# 分析$(echo-cmd) $(cmd_$(1))，如下
-# echo-cmd见本文件前面定义
-# echo-cmd = $(if $($(quiet)cmd_$(1)),\
-#	echo '  $(call escsq,$($(quiet)cmd_$(1)))$(echo-why)';)
-# 等价于echo-cmd = $(if $($(quiet)cmd_cc_o_c), echo '  $(call escsq,$($(quiet)cmd_cc_o_c))$(echo-why)';)
-# escsq在本文件前面定义，escsq = $(subst $(squote),'\$(squote)',$1)
-# $(echo-why)在本文件后面定义，告诉本次编译的原因，我们这里不分析，略去它，
-# 那么$(call escsq,$($(quiet)cmd_cc_o_c))$(echo-why)可以简化成$(call escsq,$($(quiet)cmd_cc_o_c))
-# escsq函数在本文件前面定义escsq = $(subst $(squote),'\$(squote)',$1)
-# 上面的$1即为$($(quiet)cmd_cc_o_c)，escsq相当于把$1中的单引号用\反引用，不然的话，echo命令本来就有单引号，
-# 如果$1中再有单引号的话，就会有问题。 
-# $(echo-cmd) $(cmd_$(1));  意思就是将$(cmd_$(1)作为参数传给$(echo-cmd)，$(echo-cmd)会把$(cmd_$(1))中的单引号用\反应用，
-# 然后通过echo把$(cmd_$(1))打出来
-#
-# $(dot-target).cmd)是指各个子目录中的隐藏文件，比如linux-3.10.14/fs目录中的.read_write.o.cmd文件
-#
 #
 # 以linux-3.10.14/Makefile中的vmlinux为例:
 # vmlinux: scripts/link-vmlinux.sh $(vmlinux-deps) FORCE
@@ -290,8 +268,19 @@ any-prereq = $(filter-out $(PHONY),$?) $(filter-out $(PHONY) $(wildcard $^),$^)
 # $(any-prereq)表示有比目标新的依赖,或者有依赖不存在需要重新生成.
 # arg-check = $(strip $(filter-out $(cmd_$(1)), $(cmd_$@)) \
 #                    $(filter-out $(cmd_$@),   $(cmd_$(1))) )
+# cmd_$(1)为cmd_link-vmlinux,定义见linux-3.10.14:
+# cmd_link-vmlinux = $(CONFIG_SHELL) $< $(LD) $(LDFLAGS) $(LDFLAGS_vmlinux)
+# arg-check中用到了cmd_$@变量,这个变量在if_changed中定义,见echo语句.
+# 对于vmlinux目标,arg-check中的cmd_$@为cmd_vmlinux,该变量由echo语句赋值,表示这次的编译参数.
+# 再下一次编译时,通过arg-check比较本次编译参数cmd_$(1)和上一次的编译参数$@,看看编译参数是否不同.
 #
+# echo-cmd = $(if $($(quiet)cmd_$(1)),\
+#	echo '  $(call escsq,$($(quiet)cmd_$(1)))$(echo-why)';)
+# $(echo-why)在本文件后面定义，告诉本次编译的原因，我们这里不分析,略去它
+# escsq把cmd_$(1)中的单引号用\反引用,不然的话,如果$1中有单引号的话,会与echo命令本来的单引号冲突.
 #
+# $(dot-target).cmd)是指各个子目录中的隐藏文件，比如linux-3.10.14/fs目录中的.read_write.o.cmd文件.
+# dot-target定义本文前面,dot-target = $(dir $@).$(notdir $@).
 if_changed = $(if $(strip $(any-prereq) $(arg-check)),                       \
 	@set -e;                                                             \
 	$(echo-cmd) $(cmd_$(1));                                             \
